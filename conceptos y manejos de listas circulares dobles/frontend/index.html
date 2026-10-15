@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Roulette Ring</title>
+  <meta name="description" content="European roulette simulator built on a circular doubly linked list (Python backend).">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230f3b2c' stroke='%23d4af37' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23f4ecd8'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Playfair+Display:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="16" cy="16" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M16 3v6M16 23v6M3 16h6M23 16h6" stroke="currentColor" stroke-width="1.5"/></svg>
+      <div>
+        <h1>Roulette Ring</h1>
+        <p class="tagline">European roulette on a circular doubly linked list</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="round-pill" id="round-pill" aria-live="polite">Round 0</span>
+      <span class="mock-pill" id="mock-pill" hidden>Mock API</span>
+      <button type="button" class="btn btn-ghost" id="btn-demo" data-mutates>Load demo</button>
+      <button type="button" class="btn btn-ghost btn-danger-ghost" id="btn-reset" data-mutates>Reset</button>
+    </div>
+  </header>
+
+  <main id="main" class="layout">
+    <!-- LEFT: players + bets -->
+    <aside class="col col-left">
+      <section class="panel" aria-labelledby="players-title">
+        <h2 id="players-title" class="panel-title">Players</h2>
+        <form id="player-form" class="form-row" novalidate>
+          <div class="field grow">
+            <label for="player-name">Name</label>
+            <input id="player-name" name="name" type="text" autocomplete="off" maxlength="24" required placeholder="Ana">
+          </div>
+          <div class="field w-balance">
+            <label for="player-balance">Balance</label>
+            <input id="player-balance" name="balance" type="number" inputmode="numeric" min="1" step="1" value="100" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-icon-text" data-mutates>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add
+          </button>
+        </form>
+        <p class="field-error" id="player-error" role="alert" hidden></p>
+        <ul class="player-list" id="player-list" aria-label="Players"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="bets-title">
+        <h2 id="bets-title" class="panel-title">Place a bet</h2>
+        <form id="bet-form" novalidate>
+          <div class="field">
+            <label for="bet-player">Player</label>
+            <select id="bet-player" required></select>
+          </div>
+          <fieldset class="field">
+            <legend>Bet type</legend>
+            <div class="segmented" id="bet-type-group">
+              <label><input type="radio" name="bet-type" value="STRAIGHT" checked><span>Straight<small>35:1</small></span></label>
+              <label><input type="radio" name="bet-type" value="COLOR"><span>Color<small>1:1</small></span></label>
+              <label><input type="radio" name="bet-type" value="PARITY"><span>Parity<small>1:1</small></span></label>
+              <label><input type="radio" name="bet-type" value="DOZEN"><span>Dozen<small>2:1</small></span></label>
+              <label><input type="radio" name="bet-type" value="NEIGHBORS"><span>Neighbors<small>6:1</small></span></label>
+            </div>
+          </fieldset>
+          <div class="field" id="bet-value-wrap"></div>
+          <div class="field">
+            <label for="bet-amount">Amount</label>
+            <div class="amount-row">
+              <input id="bet-amount" type="number" inputmode="numeric" min="1" step="1" value="10" required>
+              <div class="chips" role="group" aria-label="Quick amounts">
+                <button type="button" class="chip-btn" data-amount="5">5</button>
+                <button type="button" class="chip-btn" data-amount="10">10</button>
+                <button type="button" class="chip-btn" data-amount="25">25</button>
+                <button type="button" class="chip-btn" data-amount="50">50</button>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" data-mutates>Place bet</button>
+          <p class="field-error" id="bet-error" role="alert" hidden></p>
+        </form>
+        <h3 class="sub-title">Pending bets <span class="count" id="bet-count">0</span></h3>
+        <ul class="bet-list" id="bet-list" aria-label="Pending bets"></ul>
+      </section>
+    </aside>
+
+    <!-- CENTER: wheel -->
+    <section class="col col-center" aria-labelledby="wheel-title">
+      <h2 id="wheel-title" class="visually-hidden">Roulette wheel</h2>
+      <div class="wheel-stage">
+        <div class="wheel-frame" id="wheel-host"></div>
+        <p class="wheel-caption" id="wheel-caption">Marker at <strong>0</strong></p>
+      </div>
+
+      <div class="panel spin-panel">
+        <button type="button" class="btn btn-spin" id="btn-spin" data-mutates>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+          Spin
+        </button>
+        <details class="manual" id="manual-spin">
+          <summary>Manual steps</summary>
+          <form id="manual-form" class="manual-grid" novalidate>
+            <div class="field">
+              <label for="wheel-steps">wheel_steps <small>(marker.next)</small></label>
+              <input id="wheel-steps" type="number" inputmode="numeric" min="0" step="1" value="40">
+            </div>
+            <div class="field">
+              <label for="ball-steps">ball_steps <small>(ball.previous)</small></label>
+              <input id="ball-steps" type="number" inputmode="numeric" min="0" step="1" value="38">
+            </div>
+            <button type="submit" class="btn btn-secondary" data-mutates>Spin with these steps</button>
+          </form>
+          <p class="field-error" id="spin-error" role="alert" hidden></p>
+        </details>
+        <div class="steps-readout" id="steps-readout" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: result + inspector + history -->
+    <aside class="col col-right">
+      <section class="panel" aria-labelledby="result-title">
+        <h2 id="result-title" class="panel-title">Last result</h2>
+        <div class="result-wrap">
+          <div class="result-badge is-empty" id="result-badge" aria-live="polite">
+            <span class="result-number">–</span>
+            <span class="result-color">No spins yet</span>
+          </div>
+          <div class="table-scroll">
+            <table class="settle-table" id="settle-table">
+              <caption class="visually-hidden">Settlements of the last spin</caption>
+              <thead><tr><th scope="col">Player</th><th scope="col">Bet</th><th scope="col">Outcome</th><th scope="col" class="num">Delta</th><th scope="col" class="num">Balance</th></tr></thead>
+              <tbody><tr><td colspan="5" class="muted">No settlements yet.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="inspector-title">
+        <h2 id="inspector-title" class="panel-title">Pocket inspector</h2>
+        <form id="inspect-form" class="form-row" novalidate>
+          <div class="field grow">
+            <label for="inspect-number">Pocket number</label>
+            <input id="inspect-number" type="number" inputmode="numeric" min="0" max="36" step="1" placeholder="0–36">
+          </div>
+          <button type="submit" class="btn btn-secondary">Inspect</button>
+        </form>
+        <div id="inspector" class="inspector" aria-live="polite">
+          <p class="muted">Click a pocket on the wheel or a node in the list.</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="history-title">
+        <h2 id="history-title" class="panel-title">History ring</h2>
+        <div class="history-wrap">
+          <div id="history-host" class="history-host"></div>
+          <div class="history-controls">
+            <button type="button" class="btn btn-secondary btn-icon-text" id="btn-older" data-mutates>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Older
+            </button>
+            <button type="button" class="btn btn-secondary btn-icon-text" id="btn-newer" data-mutates>
+              Newer<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+          <p class="history-cursor" id="history-cursor" aria-live="polite"></p>
+        </div>
+        <h3 class="sub-title">Color stats</h3>
+        <div class="stats" id="stats"></div>
+      </section>
+    </aside>
+
+    <!-- FULL WIDTH: felt betting table -->
+    <section class="panel felt-panel" aria-labelledby="felt-title">
+      <h2 id="felt-title" class="panel-title">Betting table</h2>
+      <p class="field-error" id="felt-error" role="alert" hidden></p>
+      <div id="felt-host"></div>
+    </section>
+
+    <!-- FULL WIDTH: linked list view -->
+    <section class="panel list-panel" aria-labelledby="list-title">
+      <div class="list-head">
+        <div>
+          <h2 id="list-title" class="panel-title">Linked list view</h2>
+          <p class="muted small">37 nodes of <code>CircularDoublyLinkedList[Pocket]</code>. Outer arrows are <code>next</code>, inner arrows are <code>previous</code>.</p>
+        </div>
+        <div class="list-actions">
+          <button type="button" class="btn btn-secondary btn-icon-text" id="btn-fwd">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>Traverse forward
+          </button>
+          <button type="button" class="btn btn-secondary btn-icon-text" id="btn-bwd">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg>Traverse backward
+          </button>
+          <button type="button" class="btn btn-ghost" id="btn-replay" disabled>Replay last spin</button>
+          <button type="button" class="btn btn-ghost" id="btn-skip" disabled>Skip</button>
+        </div>
+      </div>
+      <div class="list-body">
+        <div class="list-host" id="list-host"></div>
+        <aside class="list-side">
+          <ul class="legend" aria-label="Legend">
+            <li><span class="sw sw-next"></span><code>next</code> link / wheel path</li>
+            <li><span class="sw sw-prev"></span><code>previous</code> link / ball path</li>
+            <li><span class="sw sw-trav"></span>traversal pointer</li>
+            <li><span class="badge-demo">HEAD</span> first node (0)</li>
+            <li><span class="badge-demo">TAIL</span> <code>head.previous</code></li>
+            <li><span class="badge-demo badge-demo-marker">MARKER</span> node under the table marker</li>
+          </ul>
+          <div class="code-caption" aria-live="polite">
+            <p class="cc-label">Current operation</p>
+            <p class="cc-code" id="list-caption"><code>idle</code></p>
+            <pre class="cc-pre" id="list-code" aria-label="Python equivalent"></pre>
+            <p class="cc-label">Visited nodes</p>
+            <ol class="cc-trail" id="list-trail" aria-label="Visited nodes"></ol>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>All list operations run in Python. This page only renders and animates the API responses.</p>
+  </footer>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
